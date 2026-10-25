@@ -9,7 +9,7 @@ A weather dashboard for the Philippines that shows live forecasts for any city o
 
 > Hosted on Render's free tier, so the first load after a period of inactivity may take up to a minute while the server wakes up.
 
-![Dashboard screenshot](screenshot.png)
+![Dashboard screenshot](Dashboard_Screenshot/Dashboard.png)
 
 ## Why I built this
 
