@@ -186,6 +186,48 @@ header { position: relative; z-index: 10; } /* keeps the dropdown above the card
 .alert a { color: #fff; font-weight: 600; }
 .alert .tag { font-size: 0.75rem; opacity: 0.7; }
 
+/* ---------- Weather themes ---------- */
+.blob { transition: background 1.5s ease; }
+
+body.theme-sunny  { background: linear-gradient(135deg, #f7971e, #ff8c42, #ff6f61); }
+body.theme-sunny  .blob.one   { background: #ffd200; }
+body.theme-sunny  .blob.two   { background: #ff512f; }
+body.theme-sunny  .blob.three { background: #fff3b0; }
+
+body.theme-cloudy { background: linear-gradient(135deg, #536976, #6a7f99, #8e9eab); }
+body.theme-cloudy .blob.one   { background: #bdc3c7; }
+body.theme-cloudy .blob.two   { background: #2c3e50; }
+body.theme-cloudy .blob.three { background: #a1c4fd; }
+
+body.theme-rain   { background: linear-gradient(135deg, #1f4037, #203a43, #2c5364); }
+body.theme-rain   .blob.one   { background: #00c6ff; }
+body.theme-rain   .blob.two   { background: #0f2027; }
+body.theme-rain   .blob.three { background: #4ca1af; }
+
+body.theme-storm  { background: linear-gradient(135deg, #141e30, #243b55, #3a1c71); }
+body.theme-storm  .blob.one   { background: #8e2de2; }
+body.theme-storm  .blob.two   { background: #4a00e0; }
+body.theme-storm  .blob.three { background: #ffd200; }
+
+body.theme-night  { background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); }
+body.theme-night  .blob.one   { background: #6a3093; }
+body.theme-night  .blob.two   { background: #1e3c72; }
+body.theme-night  .blob.three { background: #ff6ec4; }
+
+/* ---------- Heat index badge ---------- */
+.heat {
+  flex-basis: 100%;
+  padding: 0.8rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  font-size: 0.9rem;
+}
+.heat strong { display: block; font-size: 1rem; margin-bottom: 0.2rem; }
+.heat.caution         { background: rgba(255, 215, 0, 0.25); }
+.heat.extreme-caution { background: rgba(255, 140, 0, 0.35); }
+.heat.danger          { background: rgba(255, 69, 0, 0.4); }
+.heat.extreme-danger  { background: rgba(200, 0, 0, 0.5); }
+
   </style>
 </head>
 <body>
@@ -217,65 +259,132 @@ header { position: relative; z-index: 10; } /* keeps the dropdown above the card
   let place = JSON.parse(localStorage.getItem("place")) ||
     { name: "Manila", region: "Metro Manila", lat: 14.5995, lon: 120.9842 };
 
-  function describe(code) {
-    if (code === 0) return ["Clear sky", "☀️"];
-    if (code <= 3) return ["Partly cloudy", "⛅"];
-    if (code <= 48) return ["Foggy", "🌫️"];
-    if (code <= 57) return ["Drizzle", "🌦️"];
-    if (code <= 67) return ["Rain", "🌧️"];
-    if (code <= 77) return ["Snow", "❄️"];
-    if (code <= 82) return ["Rain showers", "🌦️"];
-    return ["Thunderstorm", "⛈️"];
-  }
+  // Lets you preview things with URLs like ?theme=rain or ?heat=45
+const params = new URLSearchParams(location.search);
 
-  async function loadWeather() {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${place.lat}&longitude=${place.lon}` +
-      `&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,precipitation,weather_code` +
-      `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
-      `&timezone=Asia/Manila`;
+function describe(code, isDay = true) {
+  if (code === 0) return isDay ? ["Clear sky", "☀️"] : ["Clear night", "🌙"];
+  if (code <= 3) return isDay ? ["Partly cloudy", "⛅"] : ["Partly cloudy", "☁️"];
+  if (code <= 48) return ["Foggy", "🌫️"];
+  if (code <= 57) return ["Drizzle", "🌦️"];
+  if (code <= 67) return ["Rain", "🌧️"];
+  if (code <= 77) return ["Snow", "❄️"];
+  if (code <= 82) return ["Rain showers", "🌦️"];
+  return ["Thunderstorm", "⛈️"];
+}
 
-    try {
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Network error");
-      const data = await res.json();
-      const c = data.current;
-      const [desc, icon] = describe(c.weather_code);
+// ---------- Weather themes ----------
+function themeFor(code, isDay) {
+  if (code >= 95) return "storm";
+  if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return "rain";
+  if (!isDay) return "night";
+  if (code <= 1) return "sunny";
+  return "cloudy";
+}
 
-      document.getElementById("current").innerHTML = `
-        <div>
-          <div class="desc">${place.name}${place.region ? ", " + place.region : ""}</div>
-          <div class="temp">${Math.round(c.temperature_2m)}°C</div>
-          <div class="desc">${desc}</div>
-        </div>
-        <div class="icon">${icon}</div>
-        <div class="stats">
-          <div><span>Feels like</span><strong>${Math.round(c.apparent_temperature)}°C</strong></div>
-          <div><span>Humidity</span><strong>${c.relative_humidity_2m}%</strong></div>
-          <div><span>Wind</span><strong>${c.wind_speed_10m} km/h</strong></div>
-          <div><span>Rain</span><strong>${c.precipitation} mm</strong></div>
-        </div>`;
+function setTheme(theme) {
+  document.body.classList.remove("theme-sunny", "theme-cloudy", "theme-rain", "theme-storm", "theme-night");
+  document.body.classList.add(`theme-${theme}`);
+}
 
-      const d = data.daily;
-      document.getElementById("forecast").innerHTML = d.time.map((day, i) => {
-        const [, dayIcon] = describe(d.weather_code[i]);
-        const name = i === 0 ? "Today"
-          : new Date(day).toLocaleDateString("en-PH", { weekday: "short" });
-        return `
-          <div class="glass day">
-            <div class="name">${name}</div>
-            <div class="icon">${dayIcon}</div>
-            <div class="range">${Math.round(d.temperature_2m_max[i])}° / ${Math.round(d.temperature_2m_min[i])}°</div>
-            <div class="rain">💧 ${d.precipitation_probability_max[i]}%</div>
-          </div>`;
-      }).join("");
+// ---------- Heat index ----------
+// Standard heat index formula (works in °F internally, returns °C)
+function heatIndex(tempC, rh) {
+  const T = tempC * 9 / 5 + 32;
+  let hi = 0.5 * (T + 61 + (T - 68) * 1.2 + rh * 0.094);
 
-      document.getElementById("updated").textContent =
-        `Last updated: ${new Date().toLocaleTimeString("en-PH")}`;
-    } catch (err) {
-      document.getElementById("current").textContent =
-        "Couldn't load weather data. Check your connection and try again.";
+  if ((hi + T) / 2 >= 80) {
+    hi = -42.379 + 2.04901523 * T + 10.14333127 * rh
+      - 0.22475541 * T * rh - 0.00683783 * T * T
+      - 0.05481717 * rh * rh + 0.00122874 * T * T * rh
+      + 0.00085282 * T * rh * rh - 0.00000199 * T * T * rh * rh;
+
+    if (rh < 13 && T >= 80 && T <= 112) {
+      hi -= ((13 - rh) / 4) * Math.sqrt((17 - Math.abs(T - 95)) / 17);
+    } else if (rh > 85 && T >= 80 && T <= 87) {
+      hi += ((rh - 85) / 10) * ((87 - T) / 5);
     }
   }
+  return Math.round((hi - 32) * 5 / 9);
+}
+
+// PAGASA heat index classification
+function heatLevel(hi) {
+  if (hi >= 52) return { cls: "extreme-danger", label: "Extreme Danger",
+    tip: "Heat stroke is highly likely. Stay indoors in a cool place and check on elderly family members and children." };
+  if (hi >= 42) return { cls: "danger", label: "Danger",
+    tip: "Heat exhaustion is likely, and heat stroke is possible with prolonged exposure. Avoid outdoor activity around midday." };
+  if (hi >= 33) return { cls: "extreme-caution", label: "Extreme Caution",
+    tip: "Heat cramps and heat exhaustion are possible. Drink water often and limit time under the sun." };
+  if (hi >= 27) return { cls: "caution", label: "Caution",
+    tip: "Fatigue is possible with prolonged exposure. Stay hydrated and take breaks in the shade." };
+  return null;
+}
+
+async function loadWeather() {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${place.lat}&longitude=${place.lon}` +
+    `&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,precipitation,weather_code,is_day` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max` +
+    `&timezone=Asia/Manila`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Network error");
+    const data = await res.json();
+    const c = data.current;
+    const isDay = c.is_day === 1;
+    const [desc, icon] = describe(c.weather_code, isDay);
+
+    setTheme(params.get("theme") || themeFor(c.weather_code, isDay));
+
+    const hi = params.has("heat")
+      ? Number(params.get("heat"))
+      : heatIndex(c.temperature_2m, c.relative_humidity_2m);
+    // Skip the mild "Caution" level while it's raining, since it's less useful then.
+// Extreme Caution and above always show, because they're real health risks.
+const isWet = c.precipitation > 0 || ["rain", "storm"].includes(themeFor(c.weather_code, isDay));
+let level = heatLevel(hi);
+if (level && level.cls === "caution" && isWet && !params.has("heat")) level = null;
+    const heatHtml = level
+      ? `<div class="heat ${level.cls}"><strong>🌡️ Heat index ${hi}°C · ${level.label}</strong>${level.tip}</div>`
+      : "";
+
+    document.getElementById("current").innerHTML = `
+      <div>
+        <div class="desc">${place.name}${place.region ? ", " + place.region : ""}</div>
+        <div class="temp">${Math.round(c.temperature_2m)}°C</div>
+        <div class="desc">${desc}</div>
+      </div>
+      <div class="icon">${icon}</div>
+      <div class="stats">
+        <div><span>Feels like</span><strong>${Math.round(c.apparent_temperature)}°C</strong></div>
+        <div><span>Humidity</span><strong>${c.relative_humidity_2m}%</strong></div>
+        <div><span>Wind</span><strong>${c.wind_speed_10m} km/h</strong></div>
+        <div><span>Rain</span><strong>${c.precipitation} mm</strong></div>
+      </div>
+      ${heatHtml}`;
+
+    const d = data.daily;
+    document.getElementById("forecast").innerHTML = d.time.map((day, i) => {
+      const [, dayIcon] = describe(d.weather_code[i]);
+      const name = i === 0 ? "Today"
+        : new Date(day).toLocaleDateString("en-PH", { weekday: "short" });
+      return `
+        <div class="glass day">
+          <div class="name">${name}</div>
+          <div class="icon">${dayIcon}</div>
+          <div class="range">${Math.round(d.temperature_2m_max[i])}° / ${Math.round(d.temperature_2m_min[i])}°</div>
+          <div class="rain">💧 ${d.precipitation_probability_max[i]}%</div>
+        </div>`;
+    }).join("");
+
+    document.getElementById("updated").textContent =
+      `Last updated: ${new Date().toLocaleTimeString("en-PH")} · Data from Open-Meteo`;
+  } catch (err) {
+    document.getElementById("current").textContent =
+      "Couldn't load weather data. Check your connection and try again.";
+  }
+}
 
   // ---------- City search ----------
   const input = document.getElementById("search");
