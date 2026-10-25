@@ -116,7 +116,28 @@
 
 header { position: relative; z-index: 10; } /* keeps the dropdown above the cards */
 
-.search { position: relative; }
+.search {
+  position: relative;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.search input { flex: 1; min-width: 180px; }
+
+.locate-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  padding: 0.6rem 1rem;
+  font-size: 0.95rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s, transform 0.1s;
+}
+.locate-btn:hover { background: rgba(255, 255, 255, 0.25); }
+.locate-btn:active { transform: scale(0.96); }
+.locate-btn:disabled { opacity: 0.6; cursor: wait; }
 
 .search input {
   width: 260px;
@@ -176,9 +197,10 @@ header { position: relative; z-index: 10; } /* keeps the dropdown above the card
     <header class="glass">
   <h1>🇵🇭 PH Weather Dashboard</h1>
   <div class="search">
-    <input type="text" id="search" placeholder="Search a city or town..." autocomplete="off" />
-    <ul id="suggestions" class="suggestions glass"></ul>
-  </div>
+  <input type="text" id="search" placeholder="Search a city or town..." autocomplete="off" />
+  <button id="locate" class="locate-btn" title="Use my current location">📍 Near me</button>
+  <ul id="suggestions" class="suggestions glass"></ul>
+</div>
 </header>
 
     <div id="alert" class="glass alert"></div>
@@ -396,6 +418,75 @@ async function loadAlerts() {
 
 loadAlerts();
 setInterval(loadAlerts, 30 * 60 * 1000);
+
+
+// ---------- Use my location ----------
+const locateBtn = document.getElementById("locate");
+const LOCATE_LABEL = "📍 Near me";
+
+// Briefly show a message on the button, then reset it
+function flashButton(message) {
+  locateBtn.textContent = message;
+  setTimeout(() => {
+    locateBtn.textContent = LOCATE_LABEL;
+    locateBtn.disabled = false;
+  }, 3000);
+}
+
+// Turn coordinates into a readable place name
+async function reverseGeocode(lat, lon) {
+  try {
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client` +
+      `?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Reverse geocoding failed");
+    const data = await res.json();
+    return {
+      name: data.city || data.locality || "Your location",
+      region: data.principalSubdivision || "",
+    };
+  } catch {
+    return { name: "Your location", region: "" };
+  }
+}
+
+locateBtn.addEventListener("click", () => {
+  if (!("geolocation" in navigator)) {
+    locateBtn.disabled = true;
+    return flashButton("Not supported");
+  }
+
+  locateBtn.disabled = true;
+  locateBtn.textContent = "📍 Locating...";
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      const { name, region } = await reverseGeocode(lat, lon);
+
+      place = { name, region, lat, lon };
+      localStorage.setItem("place", JSON.stringify(place));
+      await loadWeather();
+
+      locateBtn.textContent = LOCATE_LABEL;
+      locateBtn.disabled = false;
+    },
+    (error) => {
+      const messages = {
+        1: "Permission denied", // user clicked "Block"
+        2: "Location unavailable",
+        3: "Timed out",
+      };
+      flashButton(messages[error.code] || "Couldn't locate");
+    },
+    {
+      enableHighAccuracy: false, // city-level is enough for weather, and it's faster
+      timeout: 10000,
+      maximumAge: 10 * 60 * 1000, // reuse a location from the last 10 minutes
+    }
+  );
+});
 
 
   loadWeather();
