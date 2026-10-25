@@ -260,7 +260,9 @@ body.theme-night  .blob.three { background: #ff6ec4; }
   // Lets you preview things with URLs like ?theme=rain or ?heat=45
 const params = new URLSearchParams(location.search);
 
-
+// Load the last place the user picked, or default to Manila
+let place = JSON.parse(localStorage.getItem("place")) ||
+  { name: "Manila", region: "Metro Manila", lat: 14.5995, lon: 120.9842 };
 
 function setTheme(theme) {
   document.body.classList.remove("theme-sunny", "theme-cloudy", "theme-rain", "theme-storm", "theme-night");
